@@ -19,7 +19,9 @@ $configureBox = <<-SHELL
 
   # スワップを無効化する
   swapoff -a
-  sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+  # プロビジョニングで実行する場合はバックスラッシュのエスケープが必要なことに注意
+  # sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+  sed -i '/ swap / s/^\\(.*\\)$/#\\1/g' /etc/fstab
 
   # Kubernetesのレポジトリ追加
   cat <<EOF > /etc/yum.repos.d/kubernetes.repo
