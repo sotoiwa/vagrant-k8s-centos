@@ -1,6 +1,10 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
+# Workerノードの数
+worker_count=2
+
+# 共通のプロビジョニングスクリプト
 $configureBox = <<-SHELL
 
   # パッケージ更新
@@ -60,6 +64,7 @@ EOF
 
 SHELL
 
+# Masterノードのプロビジョニングスクリプト
 $configureMaster = <<-SHELL
 
   echo "This is master"
@@ -96,8 +101,12 @@ $configureMaster = <<-SHELL
   sed -i "/^[^#]*PasswordAuthentication[[:space:]]no/c\PasswordAuthentication yes" /etc/ssh/sshd_config
   systemctl restart sshd
 
+  # kubectlの補完を有効にする
+  echo "source <(kubectl completion bash)" >> /home/vagrant/.bashrc
+
 SHELL
 
+# Workerノードのプロビジョニングスクリプト
 $configureNode = <<-SHELL
 
   echo "This is worker"
@@ -111,7 +120,7 @@ SHELL
 
 Vagrant.configure(2) do |config|
 
-  (1..3).each do |i|
+  (1..worker_count+1).each do |i|
 
     if i == 1 then
       vm_name = "master"
