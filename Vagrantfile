@@ -15,7 +15,7 @@ $configureBox = <<-SHELL
   # Dockerのレポジトリ追加
   yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
   # Dockerのインストール
-  VERSION=$(yum list docker-ce --showduplicates | sort -r | grep 17.03 | head -1 | awk '{print $2}')
+  VERSION=$(yum list docker-ce --showduplicates | sort -r | grep 18.06 | head -1 | awk '{print $2}')
   yum install -y --setopt=obsoletes=0 docker-ce-$VERSION docker-ce-selinux-$VERSION
   systemctl enable docker && systemctl start docker
   # vagrantユーザーをdockerグループに追加
