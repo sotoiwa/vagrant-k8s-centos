@@ -8,15 +8,18 @@ worker_count=2
 $configureBox = <<-SHELL
 
   # パッケージ更新
-  yum update -y
+  # yum update -y
 
   # Dockerの前提パッケージ
   yum install -y yum-utils device-mapper-persistent-data lvm2
   # Dockerのレポジトリ追加
   yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
   # Dockerのインストール
+  # VERSION=$(yum list docker-ce --showduplicates | sort -r | grep 17.03 | head -1 | awk '{print $2}')
+  # yum install -y --setopt=obsoletes=0 docker-ce-$VERSION docker-ce-selinux-$VERSION
   VERSION=$(yum list docker-ce --showduplicates | sort -r | grep 18.06 | head -1 | awk '{print $2}')
-  yum install -y --setopt=obsoletes=0 docker-ce-$VERSION docker-ce-selinux-$VERSION
+  yum install -y docker-ce-$VERSION
+  # yum install -y docker-ce
   systemctl enable docker && systemctl start docker
   # vagrantユーザーをdockerグループに追加
   usermod -aG docker vagrant
@@ -44,8 +47,9 @@ EOF
   sed -i 's/^SELINUX=enforcing$/SELINUX=permissive/' /etc/selinux/config
   
   # kubeadm、kubelet、kubectlのインストール
-  # yum install -y kubelet-1.12.2-0 kubeadm-1.12.2-0 kubectl-1.12.2-0 --disableexcludes=kubernetes
-  yum install -y kubelet kubeadm kubectl --disableexcludes=kubernetes
+  VERSION=$(yum list kubeadm --showduplicates | sort -r | grep 1.14 | head -1 | awk '{print $2}')
+  yum install -y kubeadm--$VERSION kubelet-$VERSION kubectl--$VERSION --disableexcludes=kubernetes
+  # yum install -y kubeadm kubelet kubectl --disableexcludes=kubernetes
   systemctl enable kubelet && systemctl start kubelet
 
   cat <<EOF > /etc/sysctl.d/k8s.conf
@@ -100,6 +104,22 @@ $configureMaster = <<-SHELL
   # sshでのパスワード認証を許可する
   sed -i "/^[^#]*PasswordAuthentication[[:space:]]no/c\PasswordAuthentication yes" /etc/ssh/sshd_config
   systemctl restart sshd
+
+  # git、jq
+  yum -y install git jq
+
+  # kubens/kubectx
+  git clone https://github.com/ahmetb/kubectx.git /opt/kubectx
+  ln -s /opt/kubectx/kubectx /usr/local/bin/kubectx
+  ln -s /opt/kubectx/kubens /usr/local/bin/kubens
+
+  # kube-ps1
+  git clone https://github.com/jonmosco/kube-ps1.git /opt/kube-ps1
+  cat <<"EOF" >> /home/vagrant/.bashrc
+source /opt/kube-ps1/kube-ps1.sh
+KUBE_PS1_SUFFIX=') '
+PS1='$(kube_ps1)'$PS1
+EOF
 
   # kubectlの補完を有効にする
   echo "source <(kubectl completion bash)" >> /home/vagrant/.bashrc
