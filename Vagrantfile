@@ -2,13 +2,13 @@
 # vi: set ft=ruby :
 
 # Workerノードの数
-worker_count=1
+worker_count=2
 
 # 共通のプロビジョニングスクリプト
 $configureBox = <<-SHELL
 
   # パッケージ更新
-  # yum update -y
+  yum update -y
 
   # Dockerの前提パッケージ
   yum install -y yum-utils device-mapper-persistent-data lvm2
