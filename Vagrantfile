@@ -2,7 +2,7 @@
 # vi: set ft=ruby :
 
 # Workerノードの数
-worker_count=2
+worker_count=1
 
 # 共通のプロビジョニングスクリプト
 $configureBox = <<-SHELL
@@ -19,8 +19,27 @@ $configureBox = <<-SHELL
   # yum install -y --setopt=obsoletes=0 docker-ce-$VERSION docker-ce-selinux-$VERSION
   VERSION=$(yum list docker-ce --showduplicates | sort -r | grep 18.06 | head -1 | awk '{print $2}')
   yum install -y docker-ce-$VERSION
-  # yum install -y docker-ce
-  systemctl enable docker && systemctl start docker
+
+  # Dockerデーモンの設定
+  mkdir -p /etc/docker
+  cat <<EOF > /etc/docker/daemon.json
+{
+  "exec-opts": ["native.cgroupdriver=systemd"],
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "100m"
+  },
+  "storage-driver": "overlay2",
+  "storage-opts": [
+    "overlay2.override_kernel_check=true"
+  ]
+}
+EOF
+  mkdir -p /etc/systemd/system/docker.service.d
+  systemctl enable docker
+  systemctl daemon-reload
+  systemctl restart docker
+
   # vagrantユーザーをdockerグループに追加
   usermod -aG docker vagrant
 
@@ -37,7 +56,7 @@ name=Kubernetes
 baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
 enabled=1
 gpgcheck=1
-repo_gpgcheck=1
+repo_gpgcheck=0
 gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
 exclude=kube*
 EOF
@@ -47,8 +66,8 @@ EOF
   sed -i 's/^SELINUX=enforcing$/SELINUX=permissive/' /etc/selinux/config
   
   # kubeadm、kubelet、kubectlのインストール
-  VERSION=$(yum list kubeadm --showduplicates | sort -r | grep 1.14 | head -1 | awk '{print $2}')
-  yum install -y kubeadm--$VERSION kubelet-$VERSION kubectl--$VERSION --disableexcludes=kubernetes
+  VERSION=$(yum list kubeadm --showduplicates --disableexcludes=kubernetes | sort -r | grep 1.14 | head -1 | awk '{print $2}')
+  yum install -y kubeadm-$VERSION kubelet-$VERSION kubectl-$VERSION --disableexcludes=kubernetes
   # yum install -y kubeadm kubelet kubectl --disableexcludes=kubernetes
   systemctl enable kubelet && systemctl start kubelet
 
@@ -105,8 +124,22 @@ $configureMaster = <<-SHELL
   sed -i "/^[^#]*PasswordAuthentication[[:space:]]no/c\PasswordAuthentication yes" /etc/ssh/sshd_config
   systemctl restart sshd
 
-  # git、jq
-  yum -y install git jq
+  # jq
+  VERSION="1.6"
+  curl -Lo jq https://github.com/stedolan/jq/releases/download/jq-${VERSION}/jq-linux64
+  chmod +x jq
+  mv jq /usr/local/bin/
+
+  # helm
+  VERSION="v2.13.1"
+  curl -LO https://storage.googleapis.com/kubernetes-helm/helm-${VERSION}-linux-amd64.tar.gz
+  tar zxvf helm-${VERSION}-linux-amd64.tar.gz
+  cp linux-amd64/helm /usr/local/bin/
+  rm -rf linux-amd64
+  rm -f helm-${VERSION}-linux-amd64.tar.gz
+
+  # git
+  yum -y install git
 
   # kubens/kubectx
   git clone https://github.com/ahmetb/kubectx.git /opt/kubectx
@@ -115,7 +148,8 @@ $configureMaster = <<-SHELL
 
   # kube-ps1
   git clone https://github.com/jonmosco/kube-ps1.git /opt/kube-ps1
-  cat <<"EOF" >> /home/vagrant/.bashrc
+  cat <<'EOF' >> /home/vagrant/.bashrc
+LANG=en_US.UTF-8
 source /opt/kube-ps1/kube-ps1.sh
 KUBE_PS1_SUFFIX=') '
 PS1='$(kube_ps1)'$PS1
